@@ -23,7 +23,7 @@ except KeyError:
     st.error("APIキー設定が不足しています。")
     st.stop()
 
-MODEL_NAME = 'gemini-pro'
+MODEL_NAME = 'gemini-1.5-flash'
 
 # ==========================================
 # 1. Gemini分析関数 (エラー回避機能付き)
