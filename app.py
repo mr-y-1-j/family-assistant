@@ -26,6 +26,7 @@ MODEL_NAME = 'gemini-2.0-flash'
 # ==========================================
 # 1. Gemini分析関数
 # ==========================================
+@st.cache_data(show_spinner=False)　#追加
 def analyze_file(file_path, mime_type):
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel(MODEL_NAME)
