@@ -12,6 +12,9 @@ st.warning(f"現在のライブラリバージョン: {genai.__version__}")
 # ==========================================
 # 🔧 設定エリア
 # ==========================================
+# 診断のためにgenaiをここで設定します
+import google.generativeai as genai 
+
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     NOTION_API_KEY = st.secrets["NOTION_API_KEY"]
@@ -23,6 +26,26 @@ except KeyError:
     st.error("APIキー設定が不足しています。")
     st.stop()
 
+# ▼▼▼▼▼ 診断開始（ここから） ▼▼▼▼▼
+genai.configure(api_key=GEMINI_API_KEY)
+
+st.info("🔍 Googleサーバーに問い合わせ中...")
+try:
+    my_models = []
+    # あなたのAPIキーで使えるモデルを全検索
+    for m in genai.list_models():
+        if 'generateContent' in m.supported_generation_methods:
+            my_models.append(m.name)
+    
+    st.subheader("✅ あなたが使えるモデル一覧")
+    st.code("\n".join(my_models))
+    st.warning("👆 上記のリストにある名前（例: models/gemini-1.5-flash-001 など）をコピーして、下の MODEL_NAME に貼り付けてください。")
+
+except Exception as e:
+    st.error(f"モデル一覧の取得に失敗: {e}")
+# ▲▲▲▲▲ 診断終了（ここまで） ▲▲▲▲▲
+
+# ↓診断結果を見て、ここを書き換えてください（例: 'models/gemini-1.5-flash-001'）
 MODEL_NAME = 'gemini-1.5-flash'
 
 # ==========================================
