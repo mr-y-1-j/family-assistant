@@ -21,7 +21,7 @@ except:
     st.error("APIキーが設定されていません。StreamlitのSecretsを設定してください。")
     st.stop()
 
-MODEL_NAME = 'gemini-1.5-flash'
+MODEL_NAME = 'gemini-2.0-flash'
 
 # ==========================================
 # 1. Gemini分析関数
