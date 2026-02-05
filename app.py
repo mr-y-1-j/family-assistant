@@ -7,14 +7,9 @@ import os
 import time
 import requests
 
-st.warning(f"現在のライブラリバージョン: {genai.__version__}")
-
 # ==========================================
 # 🔧 設定エリア
 # ==========================================
-# 診断のためにgenaiをここで設定します
-import google.generativeai as genai 
-
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     NOTION_API_KEY = st.secrets["NOTION_API_KEY"]
@@ -26,30 +21,11 @@ except KeyError:
     st.error("APIキー設定が不足しています。")
     st.stop()
 
-# ▼▼▼▼▼ 診断開始（ここから） ▼▼▼▼▼
-genai.configure(api_key=GEMINI_API_KEY)
-
-st.info("🔍 Googleサーバーに問い合わせ中...")
-try:
-    my_models = []
-    # あなたのAPIキーで使えるモデルを全検索
-    for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
-            my_models.append(m.name)
-    
-    st.subheader("✅ あなたが使えるモデル一覧")
-    st.code("\n".join(my_models))
-    st.warning("👆 上記のリストにある名前（例: models/gemini-1.5-flash-001 など）をコピーして、下の MODEL_NAME に貼り付けてください。")
-
-except Exception as e:
-    st.error(f"モデル一覧の取得に失敗: {e}")
-# ▲▲▲▲▲ 診断終了（ここまで） ▲▲▲▲▲
-
-# ↓診断結果を見て、ここを書き換えてください（例: 'models/gemini-1.5-flash-001'）
-MODEL_NAME = 'gemini-1.5-flash'
+# ★修正箇所：リストにあった最新のFlashモデルを指定
+MODEL_NAME = 'models/gemini-2.5-flash'
 
 # ==========================================
-# 1. Gemini分析関数 (エラー回避機能付き)
+# 1. Gemini分析関数
 # ==========================================
 @st.cache_data(show_spinner=False)
 def analyze_file(file_path, mime_type):
@@ -61,7 +37,7 @@ def analyze_file(file_path, mime_type):
             # 1. ファイルアップロード
             uploaded_file = genai.upload_file(path=file_path, mime_type=mime_type)
             
-            # 2. 処理完了待ち（重要）
+            # 2. 処理完了待ち
             while uploaded_file.state.name == "PROCESSING":
                 time.sleep(1)
                 uploaded_file = genai.get_file(uploaded_file.name)
@@ -76,7 +52,7 @@ def analyze_file(file_path, mime_type):
             
             【出力ルール】
             - JSON形式で出力すること
-            - date: YYYY-MM-DD (年が不明なら2026年とする)
+            - date: YYYY-MM-DD (年が不明の場合、アップロード日から推測して、適切な年を設定する)
             - event: 行事名
             - items: 持ち物リスト（文字列の配列。なければ空配列）
             - note: 備考（なければnull）
@@ -89,7 +65,7 @@ def analyze_file(file_path, mime_type):
             return json.loads(response.text)
 
         except ResourceExhausted:
-            st.error("⚠️ API利用制限（混雑）のためエラーになりました。1分ほど待ってから再度「AI解析開始」を押してください。")
+            st.error("⚠️ API利用制限（混雑）です。1分ほど待ってから再実行してください。")
             return None
         except Exception as e:
             st.error(f"エラーが発生しました: {e}")
@@ -107,16 +83,13 @@ def send_to_notion(data_list):
     }
 
     success_count = 0
-    
     status_text = st.empty()
     progress_bar = st.progress(0)
     
     for i, item in enumerate(data_list):
-        # 進捗表示
         status_text.text(f"送信中: {item['event']}...")
         progress_bar.progress((i + 1) / len(data_list))
 
-        # タイトル作成
         icon = "🎒" if item.get('items') else "🗓️"
         title_text = f"{icon} {item['event']}"
         items_text = "、".join(item.get('items', []))
@@ -158,41 +131,32 @@ def send_to_notion(data_list):
 # ==========================================
 st.title("🏫 学校プリント・スキャナー")
 
-# Session Stateの初期化（ボタンを押してもデータが消えないようにする）
 if 'analyzed_data' not in st.session_state:
     st.session_state['analyzed_data'] = None
 
 uploaded_file = st.file_uploader("写真またはPDFを選択", type=['png', 'jpg', 'jpeg', 'pdf'])
 
 if uploaded_file is not None:
-    # プレビュー
     if uploaded_file.name.lower().endswith(('.png', '.jpg', '.jpeg')):
         st.image(uploaded_file, caption="プレビュー", width=300)
 
-    # 解析ボタン
     if st.button("AI解析開始"):
-        # 一時ファイル保存
         with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded_file.name.split('.')[-1]}") as tmp_file:
             tmp_file.write(uploaded_file.getvalue())
             tmp_path = tmp_file.name
 
         mime_type = "application/pdf" if uploaded_file.name.endswith(".pdf") else "image/jpeg"
         
-        # 解析実行
         result = analyze_file(tmp_path, mime_type)
         
         if result:
             st.session_state['analyzed_data'] = result
             st.success("解析成功！内容を確認してください。")
         
-        # 掃除
         os.unlink(tmp_path)
 
-# 解析結果がある場合のみ表示（ボタンを押してもここが維持される）
 if st.session_state['analyzed_data']:
     st.subheader("解析結果")
-    
-    # 編集可能なエディタで表示（修正可能）
     edited_data = st.data_editor(st.session_state['analyzed_data'], num_rows="dynamic")
     
     col1, col2 = st.columns(2)
@@ -201,7 +165,7 @@ if st.session_state['analyzed_data']:
             count = send_to_notion(edited_data)
             st.balloons()
             st.success(f"{count}件の予定を登録しました！")
-            st.session_state['analyzed_data'] = None # 完了したらクリア
+            st.session_state['analyzed_data'] = None
     with col2:
         if st.button("やり直す"):
             st.session_state['analyzed_data'] = None
